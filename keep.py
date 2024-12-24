@@ -10,10 +10,20 @@ from tkinter import scrolledtext
 import re  # 导入正则表达式模块
 
 # 远程执行命令的函数
-def run_remote_command_with_paramiko(host, ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, cfip, cfport):
-    # 构建远程命令
-    remote_command = f"""VMESS_PORT={tcp_port} HY2_PORT={udp1_port} TUIC_PORT={udp2_port} NEZHA_SERVER={nezha_server} NEZHA_PORT={nezha_port} NEZHA_KEY={nezha_key} ARGO_DOMAIN={argo_domain} ARGO_AUTH='{argo_auth}' CFIP={cfip} CFPORT={cfport} bash <(curl -Ls https://raw.githubusercontent.com/eooce/sing-box/main/sb_00.sh)"""
+def run_remote_command_with_paramiko(host, ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, cfip, cfport, use_nezha, use_tunnel):
+    # 如果选择了使用 Nezha，则设置相关变量
+    nezha_env = ""
+    if use_nezha:
+        nezha_env = f"NEZHA_SERVER={nezha_server} NEZHA_PORT={nezha_port} NEZHA_KEY={nezha_key}"
     
+    # 如果选择了使用固定隧道，则设置相关变量
+    tunnel_env = ""
+    if use_tunnel:
+        tunnel_env = f"ARGO_DOMAIN={argo_domain} ARGO_AUTH='{argo_auth}' "
+        
+    # 构建远程命令
+    remote_command = f"""{tunnel_env}VMESS_PORT={tcp_port} HY2_PORT={udp1_port} TUIC_PORT={udp2_port} {nezha_env} CFIP={cfip} CFPORT={cfport} bash <(curl -Ls https://raw.githubusercontent.com/eooce/sing-box/main/sb_00.sh)"""
+    print(f"构建的命令: {remote_command}")
     try:
         # 创建 SSH 客户端对象
         ssh_client = paramiko.SSHClient()
@@ -82,16 +92,20 @@ def submit():
     udp1_port = int(udp1_port_entry.get())
     udp2_port = int(udp2_port_entry.get())
     nezha_server = nezha_server_entry.get()
-    nezha_port = int(nezha_port_entry.get())
+    nezha_port = nezha_port_entry.get()
     nezha_key = nezha_key_entry.get()
     argo_domain = argo_domain_entry.get()
     argo_auth = argo_auth_entry.get()
     cfip = cfip_entry.get()
     cfport = int(cfport_entry.get())
 
+    # 获取复选框状态
+    use_nezha = use_nezha_var.get()
+    use_tunnel = use_tunnel_var.get()
+
     # 创建服务器配置字典
     servers = {
-        host: (ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth)
+        host: (ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, use_nezha, use_tunnel)
     }
 
     # 清空 Text 控件
@@ -103,17 +117,17 @@ def submit():
 # 在后台执行远程命令
 def execute_remote_command(servers, cfip, cfport):
     for host, config in servers.items():
-        ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth = config
+        ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, use_nezha, use_tunnel = config
         try:
-            append_output(f"开始一键四协议架设vmess-ws|vmess-ws-tls(argo)|hysteria2|tuic: {host}\n", "info")
-            append_output(f"本程序所用脚本来自于  Serv00|ct8老王sing-box一键四协议安装脚本\n", "info")
-            append_output(f"正在ssh连接{host}，稍安勿躁\n", "info")
-            append_output(f"以下为SSH回显内容\n", "info")
-            append_output(f"========================================================================\n\n", "info")
+            append_output(f"开始一键四协议架设 vmess-ws|vmess-ws-tls(argo)|hysteria2|tuic: \n 主机: {host}\n", "info")
+            append_output(f"本程序所用脚本来自于 Serv00|ct8老王 sing-box 一键四协议安装脚本\n", "info")
+            append_output(f"正在 ssh 连接 {host}，稍安勿躁\n", "info")
+            append_output(f"以下为 SSH 回显内容\n", "info")
+            append_output(f"============================================================\n\n", "info")
             result = run_remote_command_with_paramiko(
-                host, ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, cfip, cfport
+                host, ssh_user, ssh_pass, tcp_port, udp1_port, udp2_port, nezha_server, nezha_port, nezha_key, argo_domain, argo_auth, cfip, cfport, use_nezha, use_tunnel
             )
-            append_output(f"========================================================================\n\n上面如果显示出节点信息说明架设成功", "green")
+            append_output(f"============================================================\n\n上面如果显示出节点信息说明架设成功", "green")
         except Exception as e:
             append_output(f"\n")
 
@@ -121,12 +135,13 @@ def execute_remote_command(servers, cfip, cfport):
 def create_gui():
     global host_entry, ssh_user_entry, ssh_pass_entry, tcp_port_entry, udp1_port_entry, udp2_port_entry
     global nezha_server_entry, nezha_port_entry, nezha_key_entry, argo_domain_entry, argo_auth_entry, cfip_entry, cfport_entry, output_text
+    global use_nezha_var, use_tunnel_var
 
     root = tk.Tk()
-    root.title("SERV00一键四协议架设 v241220 by ayeaaaa")
+    root.title("SERV00一键四协议架设 v241224 by ayeaaaa")
 
     # 设置窗口大小
-    root.geometry("1000x520")
+    root.geometry("900x550")
 
     # 创建框架
     main_frame = tk.Frame(root)
@@ -156,33 +171,69 @@ def create_gui():
     tcp_port_entry = tk.Entry(config_frame, font=("Arial", 12))
     udp1_port_entry = tk.Entry(config_frame, font=("Arial", 12))
     udp2_port_entry = tk.Entry(config_frame, font=("Arial", 12))
-    nezha_server_entry = tk.Entry(config_frame, font=("Arial", 12))
-    nezha_port_entry = tk.Entry(config_frame, font=("Arial", 12))
-    nezha_key_entry = tk.Entry(config_frame, font=("Arial", 12))
-    argo_domain_entry = tk.Entry(config_frame, font=("Arial", 12))
-    argo_auth_entry = tk.Entry(config_frame, font=("Arial", 12))
+
+    # 修改下面这几行：设置它们的背景颜色为灰色，并设置为不可编辑
+    nezha_server_entry = tk.Entry(config_frame, font=("Arial", 12), state="disabled", bg="gray")
+    nezha_port_entry = tk.Entry(config_frame, font=("Arial", 12), state="disabled", bg="gray")
+    nezha_key_entry = tk.Entry(config_frame, font=("Arial", 12), state="disabled", bg="gray")
+    argo_domain_entry = tk.Entry(config_frame, font=("Arial", 12), state="disabled", bg="gray")
+    argo_auth_entry = tk.Entry(config_frame, font=("Arial", 12), state="disabled", bg="gray")
     cfip_entry = tk.Entry(config_frame, font=("Arial", 12))
     cfport_entry = tk.Entry(config_frame, font=("Arial", 12))
 
-    # 布局输入框，左边是标签，右边是输入框
+    # 设置输入框位置
     entries = [
         host_entry, ssh_user_entry, ssh_pass_entry, tcp_port_entry, udp1_port_entry, udp2_port_entry,
         nezha_server_entry, nezha_port_entry, nezha_key_entry, argo_domain_entry, argo_auth_entry, cfip_entry, cfport_entry
     ]
-
+    
     for i, entry in enumerate(entries):
-        entry.grid(row=i, column=1, sticky="ew", pady=5)
+        entry.grid(row=i, column=1, pady=5)
 
-    # 提交按钮
-    submit_button = tk.Button(config_frame, text="执行", command=submit, font=("Arial", 12))
-    submit_button.grid(row=len(labels), column=0, columnspan=2, pady=10)
+    # 创建复选框变量
+    use_nezha_var = tk.BooleanVar()
+    use_tunnel_var = tk.BooleanVar()
 
-    # 输出框
-    output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, width=72, height=25, font=("Arial", 12))
-    output_text.grid(row=0, column=0, sticky="nsew", pady=10)
+    # 在配置框架中添加复选框
+    use_nezha_checkbox = tk.Checkbutton(config_frame, text="使用 Nezha", variable=use_nezha_var, font=("Arial", 12), command=toggle_nezha_inputs)
+    use_nezha_checkbox.grid(row=len(labels), column=0, sticky="w", pady=5)
+
+    use_tunnel_checkbox = tk.Checkbutton(config_frame, text="使用固定隧道", variable=use_tunnel_var, font=("Arial", 12), command=toggle_argo_inputs)
+    use_tunnel_checkbox.grid(row=len(labels), column=1, sticky="w", pady=5)
+
+    # 创建提交按钮
+    submit_button = tk.Button(config_frame, text="开始架设代理", font=("Arial", 12), command=submit)
+    submit_button.grid(row=len(labels)+1, column=0, columnspan=2, pady=10)
+
+    # 创建输出区域
+    output_text = scrolledtext.ScrolledText(output_frame, width=60, height=20, font=("Arial", 12))
+    output_text.pack(fill=tk.BOTH, expand=True)
 
     # 启动 GUI
     root.mainloop()
 
-# 启动 GUI 界面
+# 切换 Nezha 输入框的可用状态
+def toggle_nezha_inputs():
+    if use_nezha_var.get():
+        nezha_server_entry.config(state="normal", bg="white")
+        nezha_port_entry.config(state="normal", bg="white")
+        nezha_key_entry.config(state="normal", bg="white")
+    else:
+        nezha_server_entry.config(state="disabled", bg="gray")
+        nezha_port_entry.config(state="disabled", bg="gray")
+        nezha_key_entry.config(state="disabled", bg="gray")
+        nezha_server_entry.delete(0, tk.END)
+        nezha_port_entry.delete(0, tk.END)
+        nezha_key_entry.delete(0, tk.END)
+		
+
+def toggle_argo_inputs():
+    if use_tunnel_var.get():
+        argo_domain_entry.config(state="normal", bg="white")
+        argo_auth_entry.config(state="normal", bg="white")
+    else:
+        argo_domain_entry.config(state="disabled", bg="gray")
+        argo_auth_entry.config(state="disabled", bg="gray")
+
+# 启动 GUI 应用
 create_gui()
