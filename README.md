@@ -5,6 +5,7 @@
 
 2024.12.24 更新windows GUI 版本
 
+![image](https://raw.githubusercontent.com/ayeaaaa/serv00/refs/heads/main/img/gui.png)
 ===========================================================================
 
 # 1：vps一键命令，已集成到ssh工具箱中
